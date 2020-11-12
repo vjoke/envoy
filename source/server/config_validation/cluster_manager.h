@@ -64,17 +64,11 @@ public:
                            Http::Context& http_context, Grpc::Context& grpc_context,
                            Event::TimeSystem& time_system);
 
-  Http::ConnectionPool::Instance* httpConnPoolForCluster(const std::string&, ResourcePriority,
-                                                         absl::optional<Http::Protocol>,
-                                                         LoadBalancerContext*) override;
-  Host::CreateConnectionData tcpConnForCluster(const std::string&, LoadBalancerContext*) override;
-  Http::AsyncClient& httpAsyncClientForCluster(const std::string&) override;
-
 private:
   // ValidationAsyncClient always returns null on send() and start(), so it has
   // no internal state -- we might as well just keep one and hand out references
   // to it.
-  Http::ValidationAsyncClient async_client_;
+  // fixfixHttp::ValidationAsyncClient async_client_;
 };
 
 } // namespace Upstream

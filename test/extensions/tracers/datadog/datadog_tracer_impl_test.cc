@@ -50,8 +50,6 @@ public:
   void setup(envoy::config::trace::v3::DatadogConfig& datadog_config, bool init_timer) {
     cm_.thread_local_cluster_.cluster_.info_->name_ = "fake_cluster";
     cm_.initializeThreadLocalClusters({"fake_cluster"});
-    ON_CALL(cm_, httpAsyncClientForCluster("fake_cluster"))
-        .WillByDefault(ReturnRef(cm_.async_client_));
 
     if (init_timer) {
       timer_ = new NiceMock<Event::MockTimer>(&tls_.dispatcher_);
@@ -283,7 +281,7 @@ TEST_F(DatadogDriverTest, SkipReportIfCollectorClusterHasBeenRemoved) {
     cluster_update_callbacks->onClusterAddOrUpdate(cm_.thread_local_cluster_);
 
     // Verify that report will be sent.
-    EXPECT_CALL(cm_, httpAsyncClientForCluster("fake_cluster"))
+    EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient())
         .WillOnce(ReturnRef(cm_.async_client_));
     Http::MockAsyncClientRequest request(&cm_.async_client_);
     Http::AsyncClient::Callbacks* callback{};
@@ -314,7 +312,7 @@ TEST_F(DatadogDriverTest, SkipReportIfCollectorClusterHasBeenRemoved) {
     cluster_update_callbacks->onClusterRemoval("unrelated_cluster");
 
     // Verify that report will be sent.
-    EXPECT_CALL(cm_, httpAsyncClientForCluster("fake_cluster"))
+    EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient())
         .WillOnce(ReturnRef(cm_.async_client_));
     Http::MockAsyncClientRequest request(&cm_.async_client_);
     Http::AsyncClient::Callbacks* callback{};

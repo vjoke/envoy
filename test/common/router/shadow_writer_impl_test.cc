@@ -27,7 +27,7 @@ public:
     message->headers().setHost(host);
     cm_.initializeThreadLocalClusters({"foo"});
     EXPECT_CALL(cm_, getThreadLocalCluster(Eq("foo")));
-    EXPECT_CALL(cm_, httpAsyncClientForCluster("foo")).WillOnce(ReturnRef(cm_.async_client_));
+    EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient()).WillOnce(ReturnRef(cm_.async_client_));
     auto options = Http::AsyncClient::RequestOptions().setTimeout(std::chrono::milliseconds(5));
     EXPECT_CALL(cm_.async_client_, send_(_, _, options))
         .WillOnce(Invoke(
@@ -67,7 +67,7 @@ TEST_F(ShadowWriterImplTest, NoCluster) {
 
   Http::RequestMessagePtr message(new Http::RequestMessageImpl());
   EXPECT_CALL(cm_, getThreadLocalCluster(Eq("foo"))).WillOnce(Return(nullptr));
-  EXPECT_CALL(cm_, httpAsyncClientForCluster("foo")).Times(0);
+  EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient()).Times(0);
   auto options = Http::AsyncClient::RequestOptions().setTimeout(std::chrono::milliseconds(5));
   writer_.shadow("foo", std::move(message), options);
 }

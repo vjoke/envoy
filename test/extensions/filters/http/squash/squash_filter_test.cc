@@ -180,7 +180,7 @@ protected:
     attachmentTimeout_timer_ =
         new NiceMock<Envoy::Event::MockTimer>(&filter_callbacks_.dispatcher_);
 
-    EXPECT_CALL(cm_, httpAsyncClientForCluster("squash"))
+    EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient())
         .WillRepeatedly(ReturnRef(cm_.async_client_));
 
     expectAsyncClientSend();
@@ -258,7 +258,7 @@ protected:
 TEST_F(SquashFilterTest, DecodeHeaderContinuesOnClientFail) {
   initFilter();
 
-  EXPECT_CALL(cm_, httpAsyncClientForCluster("squash")).WillOnce(ReturnRef(cm_.async_client_));
+  EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient()).WillOnce(ReturnRef(cm_.async_client_));
 
   EXPECT_CALL(cm_.async_client_, send_(_, _, _))
       .WillOnce(Invoke(

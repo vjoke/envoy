@@ -191,10 +191,12 @@ void ReporterImpl::flushSpans() {
     const uint64_t timeout =
         driver_.runtime().snapshot().getInteger("tracing.zipkin.request_timeout", 5000U);
 
+    // fixfix
     if (collector_cluster_.exists()) {
       Http::AsyncClient::Request* request =
           driver_.clusterManager()
-              .httpAsyncClientForCluster(collector_cluster_.info()->name())
+              .getThreadLocalCluster(collector_cluster_.info()->name())
+              ->httpAsyncClient()
               .send(std::move(message), *this,
                     Http::AsyncClient::RequestOptions().setTimeout(
                         std::chrono::milliseconds(timeout)));

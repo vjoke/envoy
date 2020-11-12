@@ -288,14 +288,14 @@ TEST_F(AsyncClientImplTest, BasicHashPolicy) {
   message_->body().add("test body");
   Buffer::Instance& data = message_->body();
 
-  EXPECT_CALL(cm_.conn_pool_, newStream(_, _))
+  EXPECT_CALL(cm_.thread_local_cluster_.conn_pool_, newStream(_, _))
       .WillOnce(Invoke([&](ResponseDecoder& decoder,
                            ConnectionPool::Callbacks& callbacks) -> ConnectionPool::Cancellable* {
         callbacks.onPoolReady(stream_encoder_, cm_.conn_pool_.host_, stream_info_, {});
         response_decoder_ = &decoder;
         return nullptr;
       }));
-  EXPECT_CALL(cm_, httpConnPoolForCluster(_, _, _, _))
+  EXPECT_CALL(cm_.thread_local_cluster_, httpConnPool(_, _, _))
       .WillOnce(
           Invoke([&](const std::string&, Upstream::ResourcePriority, auto,
                      Upstream::LoadBalancerContext* context) -> Http::ConnectionPool::Instance* {

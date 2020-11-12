@@ -512,7 +512,7 @@ TEST_F(ExtAuthzHttpClientTest, NoCluster) {
   InSequence s;
 
   EXPECT_CALL(cm_, getThreadLocalCluster(Eq("ext_authz"))).WillOnce(Return(nullptr));
-  EXPECT_CALL(cm_, httpAsyncClientForCluster("ext_authz")).Times(0);
+  EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient()).Times(0);
   EXPECT_CALL(request_callbacks_,
               onComplete_(WhenDynamicCastTo<ResponsePtr&>(AuthzErrorResponse(CheckStatus::Error))));
   client_->check(request_callbacks_, envoy::service::auth::v3::CheckRequest{}, parent_span_,

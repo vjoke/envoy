@@ -24,8 +24,9 @@ public:
                absl::optional<Envoy::Http::Protocol> downstream_protocol,
                Upstream::LoadBalancerContext* ctx) {
     ASSERT(!is_connect);
-    conn_pool_ = cm.httpConnPoolForCluster(route_entry.clusterName(), route_entry.priority(),
-                                           downstream_protocol, ctx);
+    // fixfix
+    conn_pool_ = cm.getThreadLocalCluster(route_entry.clusterName())
+                     ->httpConnPool(route_entry.priority(), downstream_protocol, ctx);
   }
   ~HttpConnPool() override {
     ASSERT(conn_pool_stream_handle_ == nullptr, "conn_pool_stream_handle not null");

@@ -53,7 +53,7 @@ protected:
       return retry_timer_;
     }));
 
-    EXPECT_CALL(cm_, httpAsyncClientForCluster("cluster_1"))
+    EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient())
         .Times(AtLeast(1))
         .WillRepeatedly(ReturnRef(cm_.async_client_));
 

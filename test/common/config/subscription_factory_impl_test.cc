@@ -246,7 +246,7 @@ TEST_F(SubscriptionFactoryTest, HttpSubscriptionCustomRequestTimeout) {
   primary_clusters.insert("static_cluster");
   EXPECT_CALL(cm_, primaryClusters()).WillOnce(ReturnRef(primary_clusters));
   EXPECT_CALL(dispatcher_, createTimer_(_)).Times(2);
-  EXPECT_CALL(cm_, httpAsyncClientForCluster("static_cluster"));
+  EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient());
   EXPECT_CALL(
       cm_.async_client_,
       send_(_, _, Http::AsyncClient::RequestOptions().setTimeout(std::chrono::milliseconds(5000))));
@@ -263,7 +263,7 @@ TEST_F(SubscriptionFactoryTest, HttpSubscription) {
   primary_clusters.insert("static_cluster");
   EXPECT_CALL(cm_, primaryClusters()).WillOnce(ReturnRef(primary_clusters));
   EXPECT_CALL(dispatcher_, createTimer_(_)).Times(2);
-  EXPECT_CALL(cm_, httpAsyncClientForCluster("static_cluster"));
+  EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient());
   EXPECT_CALL(cm_.async_client_, send_(_, _, _))
       .WillOnce(Invoke([this](Http::RequestMessagePtr& request, Http::AsyncClient::Callbacks&,
                               const Http::AsyncClient::RequestOptions&) {

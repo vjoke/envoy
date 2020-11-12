@@ -95,7 +95,7 @@ ip_white_list:
   }
 
   void setupRequest() {
-    EXPECT_CALL(cm_, httpAsyncClientForCluster("vpn")).WillOnce(ReturnRef(cm_.async_client_));
+    EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient()).WillOnce(ReturnRef(cm_.async_client_));
     EXPECT_CALL(cm_.async_client_, send_(_, _, _))
         .WillOnce(
             Invoke([this](Http::RequestMessagePtr&, Http::AsyncClient::Callbacks& callbacks,
@@ -250,7 +250,7 @@ TEST_F(ClientSslAuthFilterTest, Ssl) {
   callbacks_->onFailure(request_, Http::AsyncClient::FailureReason::Reset);
 
   // Interval timer fires, cannot obtain async client.
-  EXPECT_CALL(cm_, httpAsyncClientForCluster("vpn")).WillOnce(ReturnRef(cm_.async_client_));
+  EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient()).WillOnce(ReturnRef(cm_.async_client_));
   EXPECT_CALL(cm_.async_client_, send_(_, _, _))
       .WillOnce(
           Invoke([&](Http::RequestMessagePtr&, Http::AsyncClient::Callbacks& callbacks,

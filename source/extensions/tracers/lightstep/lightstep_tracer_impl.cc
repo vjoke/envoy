@@ -128,12 +128,14 @@ void LightStepDriver::LightStepTransporter::Send(std::unique_ptr<lightstep::Buff
       absl::optional<std::chrono::milliseconds>(timeout));
   serializeGrpcMessage(*report, message->body());
 
+  // fixfix
   if (collector_cluster_.exists()) {
     active_report_ = std::move(report);
     active_callback_ = &callback;
     active_cluster_ = collector_cluster_.info();
     active_request_ = driver_.clusterManager()
-                          .httpAsyncClientForCluster(collector_cluster_.info()->name())
+                          .getThreadLocalCluster(collector_cluster_.info()->name())
+                          ->httpAsyncClient()
                           .send(std::move(message), *this,
                                 Http::AsyncClient::RequestOptions().setTimeout(
                                     std::chrono::milliseconds(timeout)));

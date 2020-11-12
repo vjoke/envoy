@@ -139,8 +139,9 @@ TcpConnPool::TcpConnPool(const std::string& cluster_name, Upstream::ClusterManag
                          Upstream::LoadBalancerContext* context,
                          Tcp::ConnectionPool::UpstreamCallbacks& upstream_callbacks)
     : upstream_callbacks_(upstream_callbacks) {
-  conn_pool_ = cluster_manager.tcpConnPoolForCluster(cluster_name,
-                                                     Upstream::ResourcePriority::Default, context);
+  // fixfix
+  conn_pool_ = cluster_manager.getThreadLocalCluster(cluster_name)
+                   ->tcpConnPool(Upstream::ResourcePriority::Default, context);
 }
 
 TcpConnPool::~TcpConnPool() {
@@ -186,8 +187,9 @@ HttpConnPool::HttpConnPool(const std::string& cluster_name,
                            Tcp::ConnectionPool::UpstreamCallbacks& upstream_callbacks,
                            Http::CodecClient::Type type)
     : hostname_(config.hostname()), type_(type), upstream_callbacks_(upstream_callbacks) {
-  conn_pool_ = cluster_manager.httpConnPoolForCluster(
-      cluster_name, Upstream::ResourcePriority::Default, absl::nullopt, context);
+  // fixfix
+  conn_pool_ = cluster_manager.getThreadLocalCluster(cluster_name)
+                   ->httpConnPool(Upstream::ResourcePriority::Default, absl::nullopt, context);
 }
 
 HttpConnPool::~HttpConnPool() {

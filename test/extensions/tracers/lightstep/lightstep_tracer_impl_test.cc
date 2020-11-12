@@ -75,7 +75,7 @@ public:
 
     cm_.thread_local_cluster_.cluster_.info_->name_ = "fake_cluster";
     cm_.initializeThreadLocalClusters({"fake_cluster"});
-    ON_CALL(cm_, httpAsyncClientForCluster("fake_cluster"))
+    ON_CALL(cm_.thread_local_cluster_, httpAsyncClient())
         .WillByDefault(ReturnRef(cm_.async_client_));
 
     if (init_timer) {
@@ -196,7 +196,7 @@ TEST_F(LightStepDriverTest, DeferredTlsInitialization) {
   opts->access_token = "sample_token";
   opts->component_name = "component";
 
-  ON_CALL(cm_, httpAsyncClientForCluster("fake_cluster"))
+  ON_CALL(cm_.thread_local_cluster_, httpAsyncClient())
       .WillByDefault(ReturnRef(cm_.async_client_));
 
   auto propagation_mode = Common::Ot::OpenTracingDriver::PropagationMode::TracerNative;
@@ -341,7 +341,7 @@ TEST_F(LightStepDriverTest, SkipReportIfCollectorClusterHasBeenRemoved) {
     cluster_update_callbacks->onClusterAddOrUpdate(cm_.thread_local_cluster_);
 
     // Verify that report will be sent.
-    EXPECT_CALL(cm_, httpAsyncClientForCluster("fake_cluster"))
+    EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient())
         .WillOnce(ReturnRef(cm_.async_client_));
     Http::MockAsyncClientRequest request(&cm_.async_client_);
     Http::AsyncClient::Callbacks* callback{};
@@ -369,7 +369,7 @@ TEST_F(LightStepDriverTest, SkipReportIfCollectorClusterHasBeenRemoved) {
     cluster_update_callbacks->onClusterRemoval("unrelated_cluster");
 
     // Verify that report will be sent.
-    EXPECT_CALL(cm_, httpAsyncClientForCluster("fake_cluster"))
+    EXPECT_CALL(cm_.thread_local_cluster_, httpAsyncClient())
         .WillOnce(ReturnRef(cm_.async_client_));
     Http::MockAsyncClientRequest request(&cm_.async_client_);
     Http::AsyncClient::Callbacks* callback{};
