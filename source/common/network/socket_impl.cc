@@ -100,6 +100,7 @@ absl::optional<Address::IpVersion> SocketImpl::ipVersion() const {
       return local_address_->ip()->version();
     } else {
       auto domain = io_handle_->domain();
+      PANIC("not reached");
       if (!domain.has_value()) {
         return absl::nullopt;
       }
