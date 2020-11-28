@@ -255,8 +255,9 @@ ListenerManagerImpl::ListenerManagerImpl(Instance& server,
                                          WorkerFactory& worker_factory,
                                          bool enable_dispatcher_stats)
     : server_(server), factory_(listener_factory),
-      scope_(server.stats().createScope("listener_manager.")), stats_(generateStats(*scope_)),
-      config_tracker_entry_(server.admin().getConfigTracker().add(
+      scope_(server.serverFactoryContext().scope().createScope("listener_manager.")),
+      stats_(generateStats(*scope_)),
+      config_tracker_entry_(server.serverFactoryContext().admin().getConfigTracker().add(
           "listeners", [this] { return dumpListenerConfigs(); })),
       enable_dispatcher_stats_(enable_dispatcher_stats) {
   for (uint32_t i = 0; i < server.options().concurrency(); i++) {
@@ -369,7 +370,7 @@ bool ListenerManagerImpl::addOrUpdateListener(const envoy::config::listener::v3:
     if (it == error_state_tracker_.end()) {
       it = error_state_tracker_.emplace(name, std::make_unique<UpdateFailureState>()).first;
     }
-    TimestampUtil::systemClockToTimestamp(server_.api().timeSource().systemTime(),
+    TimestampUtil::systemClockToTimestamp(server_.serverFactoryContext().api().timeSource().systemTime(),
                                           *(it->second->mutable_last_update_attempt()));
     it->second->set_details(e.what());
     it->second->mutable_failed_configuration()->PackFrom(API_RECOVER_ORIGINAL(config));
@@ -615,7 +616,7 @@ void ListenerManagerImpl::drainListener(ListenerImplPtr&& listener) {
         // The remove listener completion is called on the worker thread. We post back to the
         // main thread to avoid locking. This makes sure that we don't destroy the listener
         // while filters might still be using its context (stats, etc.).
-        server_.dispatcher().post([this, draining_it]() -> void {
+        server_.serverFactoryContext().dispatcher().post([this, draining_it]() -> void {
           // TODO(lambdai): Resolve race condition below.
           // Consider the below events in global sequence order
           // main thread: calling drainListener
@@ -689,7 +690,7 @@ void ListenerManagerImpl::addListenerToWorker(Worker& worker,
   if (overridden_listener.has_value()) {
     ENVOY_LOG(debug, "replacing existing listener {}", overridden_listener.value());
     worker.addListener(overridden_listener, listener, [this, completion_callback](bool) -> void {
-      server_.dispatcher().post([this, completion_callback]() -> void {
+      server_.serverFactoryContext().dispatcher().post([this, completion_callback]() -> void {
         stats_.listener_create_success_.inc();
         if (completion_callback) {
           completion_callback();
@@ -702,7 +703,7 @@ void ListenerManagerImpl::addListenerToWorker(Worker& worker,
       overridden_listener, listener, [this, &listener, completion_callback](bool success) -> void {
         // The add listener completion runs on the worker thread. Post back to the main thread to
         // avoid locking.
-        server_.dispatcher().post([this, success, &listener, completion_callback]() -> void {
+        server_.serverFactoryContext().dispatcher().post([this, success, &listener, completion_callback]() -> void {
           // It is possible for a listener to get added on 1 worker but not the others. The below
           // check with onListenerCreateFailure() is there to ensure we execute the
           // removal/logging/stats at most once on failure. Note also that drain/removal can race
@@ -803,7 +804,7 @@ void ListenerManagerImpl::drainFilterChains(ListenerImplPtr&& draining_listener,
   // Start the drain sequence which completes when the listener's drain manager has completed
   // draining at whatever the server configured drain times are.
   draining_group->startDrainSequence(
-      server_.options().drainTime(), server_.dispatcher(), [this, draining_group]() -> void {
+      server_.options().drainTime(), server_.serverFactoryContext().dispatcher(), [this, draining_group]() -> void {
         draining_group->getDrainingListener().debugLog(
             absl::StrCat("removing draining filter chains from listener ",
                          draining_group->getDrainingListener().name()));
@@ -816,7 +817,7 @@ void ListenerManagerImpl::drainFilterChains(ListenerImplPtr&& draining_listener,
                 // The remove listener completion is called on the worker thread. We post back to
                 // the main thread to avoid locking. This makes sure that we don't destroy the
                 // listener while filters might still be using its context (stats, etc.).
-                server_.dispatcher().post([this, draining_group]() -> void {
+                server_.serverFactoryContext().dispatcher().post([this, draining_group]() -> void {
                   if (draining_group->decWorkersPendingRemoval() == 0) {
                     draining_group->getDrainingListener().debugLog(
                         absl::StrCat("draining filter chains from listener ",
@@ -922,7 +923,7 @@ void ListenerManagerImpl::stopListener(Network::ListenerConfig& listener,
   for (const auto& worker : workers_) {
     worker->stopListener(listener, [this, callback, workers_pending_stop]() {
       if (--(*workers_pending_stop) == 0) {
-        server_.dispatcher().post(callback);
+        server_.serverFactoryContext().dispatcher().post(callback);
       }
     });
   }

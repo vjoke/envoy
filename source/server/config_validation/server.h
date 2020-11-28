@@ -59,7 +59,9 @@ class ValidationInstance final : Logger::Loggable<Logger::Id::main>,
                                  public Instance,
                                  public ListenerComponentFactory,
                                  public ServerLifecycleNotifier,
-                                 public WorkerFactory {
+                                 public WorkerFactory,
+                                 public Configuration::ServerFactoryContext,
+                                 public Configuration::TransportSocketFactoryContext {
 public:
   ValidationInstance(const Options& options, Event::TimeSystem& time_system,
                      const Network::Address::InstanceConstSharedPtr& local_address,
@@ -67,7 +69,7 @@ public:
                      ComponentFactory& component_factory, Thread::ThreadFactory& thread_factory,
                      Filesystem::Instance& file_system);
 
-  // Server::Instance
+  // Server::Instance fixfix
   Admin& admin() override { return admin_; }
   Api::Api& api() override { return *api_; }
   Upstream::ClusterManager& clusterManager() override { return *config_.clusterManager(); }
@@ -110,9 +112,9 @@ public:
   ProtobufMessage::ValidationContext& messageValidationContext() override {
     return validation_context_;
   }
-  Configuration::ServerFactoryContext& serverFactoryContext() override { return server_contexts_; }
+  Configuration::ServerFactoryContext& serverFactoryContext() override { return *this; }
   Configuration::TransportSocketFactoryContext& transportSocketFactoryContext() override {
-    return server_contexts_;
+    return *this;
   }
   void setDefaultTracingConfig(const envoy::config::trace::v3::Tracing& tracing_config) override {
     http_context_.setDefaultTracingConfig(tracing_config);
@@ -169,6 +171,19 @@ public:
     return nullptr;
   }
 
+  // fixfix
+  ProtobufMessage::ValidationVisitor& messageValidationVisitor() override {
+    // Server has two message validation visitors, one for static and
+    // other for dynamic configuration. Choose the dynamic validation
+    // visitor if server's init manager indicates that the server is
+    // in the Initialized state, as this state is engaged right after
+    // the static configuration (e.g., bootstrap) has been completed.
+    return initManager().state() == Init::Manager::State::Initialized
+               ? messageValidationContext().dynamicValidationVisitor()
+               : messageValidationContext().staticValidationVisitor();
+  }
+  Stats::Scope& scope() override { return stats_store_; }
+
 private:
   void initialize(const Options& options,
                   const Network::Address::InstanceConstSharedPtr& local_address,
@@ -206,7 +221,6 @@ private:
   Grpc::ContextImpl grpc_context_;
   Http::ContextImpl http_context_;
   Event::TimeSystem& time_system_;
-  ServerFactoryContextImpl server_contexts_;
 };
 
 } // namespace Server

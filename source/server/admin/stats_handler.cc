@@ -1,6 +1,7 @@
 #include "server/admin/stats_handler.h"
 
 #include "envoy/admin/v3/mutex_stats.pb.h"
+#include "envoy/server/transport_socket_config.h"
 
 #include "common/common/empty_string.h"
 #include "common/html/utility.h"
@@ -19,17 +20,18 @@ StatsHandler::StatsHandler(Server::Instance& server) : HandlerContextBase(server
 
 Http::Code StatsHandler::handlerResetCounters(absl::string_view, Http::ResponseHeaderMap&,
                                               Buffer::Instance& response, AdminStream&) {
-  for (const Stats::CounterSharedPtr& counter : server_.stats().counters()) {
+  for (const Stats::CounterSharedPtr& counter :
+       server_.transportSocketFactoryContext().stats().counters()) {
     counter->reset();
   }
-  server_.stats().symbolTable().clearRecentLookups();
+  server_.transportSocketFactoryContext().stats().symbolTable().clearRecentLookups();
   response.add("OK\n");
   return Http::Code::OK;
 }
 
 Http::Code StatsHandler::handlerStatsRecentLookups(absl::string_view, Http::ResponseHeaderMap&,
                                                    Buffer::Instance& response, AdminStream&) {
-  Stats::SymbolTable& symbol_table = server_.stats().symbolTable();
+  Stats::SymbolTable& symbol_table = server_.transportSocketFactoryContext().stats().symbolTable();
   std::string table;
   const uint64_t total =
       symbol_table.getRecentLookups([&table](absl::string_view name, uint64_t count) {
@@ -46,7 +48,7 @@ Http::Code StatsHandler::handlerStatsRecentLookups(absl::string_view, Http::Resp
 
 Http::Code StatsHandler::handlerStatsRecentLookupsClear(absl::string_view, Http::ResponseHeaderMap&,
                                                         Buffer::Instance& response, AdminStream&) {
-  server_.stats().symbolTable().clearRecentLookups();
+  server_.transportSocketFactoryContext().stats().symbolTable().clearRecentLookups();
   response.add("OK\n");
   return Http::Code::OK;
 }
@@ -55,7 +57,7 @@ Http::Code StatsHandler::handlerStatsRecentLookupsDisable(absl::string_view,
                                                           Http::ResponseHeaderMap&,
                                                           Buffer::Instance& response,
                                                           AdminStream&) {
-  server_.stats().symbolTable().setRecentLookupCapacity(0);
+  server_.transportSocketFactoryContext().stats().symbolTable().setRecentLookupCapacity(0);
   response.add("OK\n");
   return Http::Code::OK;
 }
@@ -63,7 +65,8 @@ Http::Code StatsHandler::handlerStatsRecentLookupsDisable(absl::string_view,
 Http::Code StatsHandler::handlerStatsRecentLookupsEnable(absl::string_view,
                                                          Http::ResponseHeaderMap&,
                                                          Buffer::Instance& response, AdminStream&) {
-  server_.stats().symbolTable().setRecentLookupCapacity(RecentLookupsCapacity);
+  server_.transportSocketFactoryContext().stats().symbolTable().setRecentLookupCapacity(
+      RecentLookupsCapacity);
   response.add("OK\n");
   return Http::Code::OK;
 }
@@ -81,13 +84,15 @@ Http::Code StatsHandler::handlerStats(absl::string_view url,
   }
 
   std::map<std::string, uint64_t> all_stats;
-  for (const Stats::CounterSharedPtr& counter : server_.stats().counters()) {
+  for (const Stats::CounterSharedPtr& counter :
+       server_.transportSocketFactoryContext().stats().counters()) {
     if (shouldShowMetric(*counter, used_only, regex)) {
       all_stats.emplace(counter->name(), counter->value());
     }
   }
 
-  for (const Stats::GaugeSharedPtr& gauge : server_.stats().gauges()) {
+  for (const Stats::GaugeSharedPtr& gauge :
+       server_.transportSocketFactoryContext().stats().gauges()) {
     if (shouldShowMetric(*gauge, used_only, regex)) {
       ASSERT(gauge->importMode() != Stats::Gauge::ImportMode::Uninitialized);
       all_stats.emplace(gauge->name(), gauge->value());
@@ -95,7 +100,7 @@ Http::Code StatsHandler::handlerStats(absl::string_view url,
   }
 
   std::map<std::string, std::string> text_readouts;
-  for (const auto& text_readout : server_.stats().textReadouts()) {
+  for (const auto& text_readout : server_.transportSocketFactoryContext().stats().textReadouts()) {
     if (shouldShowMetric(*text_readout, used_only, regex)) {
       text_readouts.emplace(text_readout->name(), text_readout->value());
     }
@@ -104,8 +109,9 @@ Http::Code StatsHandler::handlerStats(absl::string_view url,
   if (const auto format_value = Utility::formatParam(params)) {
     if (format_value.value() == "json") {
       response_headers.setReferenceContentType(Http::Headers::get().ContentTypeValues.Json);
-      response.add(
-          statsAsJson(all_stats, text_readouts, server_.stats().histograms(), used_only, regex));
+      response.add(statsAsJson(all_stats, text_readouts,
+                               server_.transportSocketFactoryContext().stats().histograms(),
+                               used_only, regex));
     } else if (format_value.value() == "prometheus") {
       return handlerPrometheusStats(url, response_headers, response, admin_stream);
     } else {
@@ -122,7 +128,8 @@ Http::Code StatsHandler::handlerStats(absl::string_view url,
       response.add(fmt::format("{}: {}\n", stat.first, stat.second));
     }
     std::map<std::string, std::string> all_histograms;
-    for (const Stats::ParentHistogramSharedPtr& histogram : server_.stats().histograms()) {
+    for (const Stats::ParentHistogramSharedPtr& histogram :
+         server_.transportSocketFactoryContext().stats().histograms()) {
       if (shouldShowMetric(*histogram, used_only, regex)) {
         auto insert = all_histograms.emplace(histogram->name(), histogram->quantileSummary());
         ASSERT(insert.second); // No duplicates expected.
@@ -145,9 +152,10 @@ Http::Code StatsHandler::handlerPrometheusStats(absl::string_view path_and_query
   if (!Utility::filterParam(params, response, regex)) {
     return Http::Code::BadRequest;
   }
-  PrometheusStatsFormatter::statsAsPrometheus(server_.stats().counters(), server_.stats().gauges(),
-                                              server_.stats().histograms(), response, used_only,
-                                              regex);
+  PrometheusStatsFormatter::statsAsPrometheus(
+      server_.transportSocketFactoryContext().stats().counters(),
+      server_.transportSocketFactoryContext().stats().gauges(),
+      server_.transportSocketFactoryContext().stats().histograms(), response, used_only, regex);
   return Http::Code::OK;
 }
 

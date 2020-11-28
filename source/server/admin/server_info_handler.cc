@@ -1,6 +1,7 @@
 #include "server/admin/server_info_handler.h"
 
 #include "envoy/admin/v3/memory.pb.h"
+#include "envoy/server/transport_socket_config.h"
 
 #include "common/memory/stats.h"
 #include "common/version/version.h"
@@ -19,17 +20,18 @@ Http::Code ServerInfoHandler::handlerCerts(absl::string_view,
   // using the same cert.
   response_headers.setReferenceContentType(Http::Headers::get().ContentTypeValues.Json);
   envoy::admin::v3::Certificates certificates;
-  server_.sslContextManager().iterateContexts([&](const Ssl::Context& context) -> void {
-    envoy::admin::v3::Certificate& certificate = *certificates.add_certificates();
-    if (context.getCaCertInformation() != nullptr) {
-      envoy::admin::v3::CertificateDetails* ca_certificate = certificate.add_ca_cert();
-      *ca_certificate = *context.getCaCertInformation();
-    }
-    for (const auto& cert_details : context.getCertChainInformation()) {
-      envoy::admin::v3::CertificateDetails* cert_chain = certificate.add_cert_chain();
-      *cert_chain = *cert_details;
-    }
-  });
+  server_.transportSocketFactoryContext().sslContextManager().iterateContexts(
+      [&](const Ssl::Context& context) -> void {
+        envoy::admin::v3::Certificate& certificate = *certificates.add_certificates();
+        if (context.getCaCertInformation() != nullptr) {
+          envoy::admin::v3::CertificateDetails* ca_certificate = certificate.add_ca_cert();
+          *ca_certificate = *context.getCaCertInformation();
+        }
+        for (const auto& cert_details : context.getCertChainInformation()) {
+          envoy::admin::v3::CertificateDetails* cert_chain = certificate.add_cert_chain();
+          *cert_chain = *cert_details;
+        }
+      });
   response.add(MessageUtil::getJsonStringFromMessage(certificates, true, true));
   return Http::Code::OK;
 }
@@ -58,8 +60,8 @@ Http::Code ServerInfoHandler::handlerMemory(absl::string_view,
 
 Http::Code ServerInfoHandler::handlerReady(absl::string_view, Http::ResponseHeaderMap&,
                                            Buffer::Instance& response, AdminStream&) {
-  const envoy::admin::v3::ServerInfo::State state =
-      Utility::serverState(server_.initManager().state(), server_.healthCheckFailed());
+  const envoy::admin::v3::ServerInfo::State state = Utility::serverState(
+      server_.serverFactoryContext().initManager().state(), server_.healthCheckFailed());
 
   response.add(envoy::admin::v3::ServerInfo::State_Name(state) + "\n");
   Http::Code code =
@@ -69,8 +71,8 @@ Http::Code ServerInfoHandler::handlerReady(absl::string_view, Http::ResponseHead
 
 Http::Code ServerInfoHandler::handlerServerInfo(absl::string_view, Http::ResponseHeaderMap& headers,
                                                 Buffer::Instance& response, AdminStream&) {
-  const std::time_t current_time =
-      std::chrono::system_clock::to_time_t(server_.timeSource().systemTime());
+  const std::time_t current_time = std::chrono::system_clock::to_time_t(
+      server_.serverFactoryContext().timeSource().systemTime());
   const std::time_t uptime_current_epoch = current_time - server_.startTimeCurrentEpoch();
   const std::time_t uptime_all_epochs = current_time - server_.startTimeFirstEpoch();
 
@@ -80,15 +82,15 @@ Http::Code ServerInfoHandler::handlerServerInfo(absl::string_view, Http::Respons
   envoy::admin::v3::ServerInfo server_info;
   server_info.set_version(VersionInfo::version());
   server_info.set_hot_restart_version(server_.hotRestart().version());
-  server_info.set_state(
-      Utility::serverState(server_.initManager().state(), server_.healthCheckFailed()));
+  server_info.set_state(Utility::serverState(server_.serverFactoryContext().initManager().state(),
+                                             server_.healthCheckFailed()));
 
   server_info.mutable_uptime_current_epoch()->set_seconds(uptime_current_epoch);
   server_info.mutable_uptime_all_epochs()->set_seconds(uptime_all_epochs);
   envoy::admin::v3::CommandLineOptions* command_line_options =
       server_info.mutable_command_line_options();
   *command_line_options = *server_.options().toCommandLineOptions();
-  server_info.mutable_node()->MergeFrom(server_.localInfo().node());
+  server_info.mutable_node()->MergeFrom(server_.serverFactoryContext().localInfo().node());
   response.add(MessageUtil::getJsonStringFromMessage(server_info, true, true));
   headers.setReferenceContentType(Http::Headers::get().ContentTypeValues.Json);
   return Http::Code::OK;

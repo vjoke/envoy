@@ -172,8 +172,8 @@ ListenerFactoryContextBaseImpl::ListenerFactoryContextBaseImpl(
     Envoy::Server::Instance& server, ProtobufMessage::ValidationVisitor& validation_visitor,
     const envoy::config::listener::v3::Listener& config, DrainManagerPtr drain_manager)
     : server_(server), metadata_(config.metadata()), direction_(config.traffic_direction()),
-      global_scope_(server.stats().createScope("")),
-      listener_scope_(server_.stats().createScope(fmt::format(
+      global_scope_(server.serverFactoryContext().scope().createScope("")),
+      listener_scope_(server_.serverFactoryContext().scope().createScope(fmt::format(
           "listener.{}.", Network::Address::resolveProtoAddress(config.address())->asString()))),
       validation_visitor_(validation_visitor), drain_manager_(std::move(drain_manager)) {}
 
@@ -181,19 +181,25 @@ AccessLog::AccessLogManager& ListenerFactoryContextBaseImpl::accessLogManager() 
   return server_.accessLogManager();
 }
 Upstream::ClusterManager& ListenerFactoryContextBaseImpl::clusterManager() {
-  return server_.clusterManager();
+  return server_.serverFactoryContext().clusterManager();
 }
-Event::Dispatcher& ListenerFactoryContextBaseImpl::dispatcher() { return server_.dispatcher(); }
-Grpc::Context& ListenerFactoryContextBaseImpl::grpcContext() { return server_.grpcContext(); }
+Event::Dispatcher& ListenerFactoryContextBaseImpl::dispatcher() {
+  return server_.serverFactoryContext().dispatcher();
+}
+Grpc::Context& ListenerFactoryContextBaseImpl::grpcContext() {
+  return server_.serverFactoryContext().grpcContext();
+}
 bool ListenerFactoryContextBaseImpl::healthCheckFailed() { return server_.healthCheckFailed(); }
 Http::Context& ListenerFactoryContextBaseImpl::httpContext() { return server_.httpContext(); }
 const LocalInfo::LocalInfo& ListenerFactoryContextBaseImpl::localInfo() const {
-  return server_.localInfo();
+  return server_.serverFactoryContext().localInfo();
 }
-Envoy::Runtime::Loader& ListenerFactoryContextBaseImpl::runtime() { return server_.runtime(); }
+Envoy::Runtime::Loader& ListenerFactoryContextBaseImpl::runtime() {
+  return server_.serverFactoryContext().runtime();
+}
 Stats::Scope& ListenerFactoryContextBaseImpl::scope() { return *global_scope_; }
 Singleton::Manager& ListenerFactoryContextBaseImpl::singletonManager() {
-  return server_.singletonManager();
+  return server_.serverFactoryContext().singletonManager();
 }
 OverloadManager& ListenerFactoryContextBaseImpl::overloadManager() {
   return server_.overloadManager();
@@ -201,7 +207,7 @@ OverloadManager& ListenerFactoryContextBaseImpl::overloadManager() {
 ThreadLocal::Instance& ListenerFactoryContextBaseImpl::threadLocal() {
   return server_.threadLocal();
 }
-Admin& ListenerFactoryContextBaseImpl::admin() { return server_.admin(); }
+Admin& ListenerFactoryContextBaseImpl::admin() { return server_.serverFactoryContext().admin(); }
 const envoy::config::core::v3::Metadata& ListenerFactoryContextBaseImpl::listenerMetadata() const {
   return metadata_;
 };
@@ -210,14 +216,14 @@ envoy::config::core::v3::TrafficDirection ListenerFactoryContextBaseImpl::direct
 };
 TimeSource& ListenerFactoryContextBaseImpl::timeSource() { return api().timeSource(); }
 ProtobufMessage::ValidationContext& ListenerFactoryContextBaseImpl::messageValidationContext() {
-  return server_.messageValidationContext();
+  return server_.serverFactoryContext().messageValidationContext();
 }
 ProtobufMessage::ValidationVisitor& ListenerFactoryContextBaseImpl::messageValidationVisitor() {
   return validation_visitor_;
 }
-Api::Api& ListenerFactoryContextBaseImpl::api() { return server_.api(); }
+Api::Api& ListenerFactoryContextBaseImpl::api() { return server_.serverFactoryContext().api(); }
 ServerLifecycleNotifier& ListenerFactoryContextBaseImpl::lifecycleNotifier() {
-  return server_.lifecycleNotifier();
+  return server_.serverFactoryContext().lifecycleNotifier();
 }
 ProcessContextOptRef ListenerFactoryContextBaseImpl::processContext() {
   return server_.processContext();
@@ -251,9 +257,12 @@ ListenerImpl::ListenerImpl(const envoy::config::listener::v3::Listener& config,
       workers_started_(workers_started), hash_(hash),
       tcp_backlog_size_(
           PROTOBUF_GET_WRAPPED_OR_DEFAULT(config, tcp_backlog_size, ENVOY_TCP_BACKLOG_SIZE)),
-      validation_visitor_(
-          added_via_api_ ? parent_.server_.messageValidationContext().dynamicValidationVisitor()
-                         : parent_.server_.messageValidationContext().staticValidationVisitor()),
+      validation_visitor_(added_via_api_ ? parent_.server_.serverFactoryContext()
+                                               .messageValidationContext()
+                                               .dynamicValidationVisitor()
+                                         : parent_.server_.serverFactoryContext()
+                                               .messageValidationContext()
+                                               .staticValidationVisitor()),
       listener_init_target_(fmt::format("Listener-init-target {}", name),
                             [this]() { dynamic_init_manager_->initialize(local_init_watcher_); }),
       dynamic_init_manager_(std::make_unique<Init::ManagerImpl>(
@@ -311,7 +320,7 @@ ListenerImpl::ListenerImpl(const envoy::config::listener::v3::Listener& config,
     // NOTE: listener_init_target_ should be added to parent's initManager at the end of the
     // listener constructor so that this listener's children entities could register their targets
     // with their parent's initManager.
-    parent_.server_.initManager().add(listener_init_target_);
+    parent_.server_.serverFactoryContext().initManager().add(listener_init_target_);
   }
 }
 
@@ -330,9 +339,12 @@ ListenerImpl::ListenerImpl(ListenerImpl& origin,
       workers_started_(workers_started), hash_(hash),
       tcp_backlog_size_(
           PROTOBUF_GET_WRAPPED_OR_DEFAULT(config, tcp_backlog_size, ENVOY_TCP_BACKLOG_SIZE)),
-      validation_visitor_(
-          added_via_api_ ? parent_.server_.messageValidationContext().dynamicValidationVisitor()
-                         : parent_.server_.messageValidationContext().staticValidationVisitor()),
+      validation_visitor_(added_via_api_ ? parent_.server_.serverFactoryContext()
+                                               .messageValidationContext()
+                                               .dynamicValidationVisitor()
+                                         : parent_.server_.serverFactoryContext()
+                                               .messageValidationContext()
+                                               .staticValidationVisitor()),
       // listener_init_target_ is not used during in place update because we expect server started.
       listener_init_target_("", nullptr),
       dynamic_init_manager_(std::make_unique<Init::ManagerImpl>(
@@ -495,10 +507,14 @@ void ListenerImpl::validateFilterChains(Network::Socket::Type socket_type) {
 
 void ListenerImpl::buildFilterChains() {
   Server::Configuration::TransportSocketFactoryContextImpl transport_factory_context(
-      parent_.server_.admin(), parent_.server_.sslContextManager(), listenerScope(),
-      parent_.server_.clusterManager(), parent_.server_.localInfo(), parent_.server_.dispatcher(),
-      parent_.server_.stats(), parent_.server_.singletonManager(), parent_.server_.threadLocal(),
-      validation_visitor_, parent_.server_.api());
+      parent_.server_.serverFactoryContext().admin(),
+      parent_.server_.transportSocketFactoryContext().sslContextManager(), listenerScope(),
+      parent_.server_.serverFactoryContext().clusterManager(),
+      parent_.server_.serverFactoryContext().localInfo(),
+      parent_.server_.serverFactoryContext().dispatcher(),
+      parent_.server_.transportSocketFactoryContext().stats(),
+      parent_.server_.serverFactoryContext().singletonManager(), parent_.server_.threadLocal(),
+      validation_visitor_, parent_.server_.serverFactoryContext().api());
   transport_factory_context.setInitManager(*dynamic_init_manager_);
   ListenerFilterChainFactoryBuilder builder(*this, transport_factory_context);
   filter_chain_manager_.addFilterChains(

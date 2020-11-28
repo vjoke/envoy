@@ -39,7 +39,8 @@ bool DrainManagerImpl::drainClose() const {
 
   // P(return true) = elapsed time / drain timeout
   // If the drain deadline is exceeded, skip the probability calculation.
-  const MonotonicTime current_time = server_.dispatcher().timeSource().monotonicTime();
+  const MonotonicTime current_time =
+      server_.serverFactoryContext().dispatcher().timeSource().monotonicTime();
   if (current_time >= drain_deadline_) {
     return true;
   }
@@ -49,7 +50,8 @@ bool DrainManagerImpl::drainClose() const {
   ASSERT(server_.options().drainTime() >= remaining_time);
   const auto elapsed_time = server_.options().drainTime() - remaining_time;
   return static_cast<uint64_t>(elapsed_time.count()) >
-         (server_.api().randomGenerator().random() % server_.options().drainTime().count());
+         (server_.serverFactoryContext().api().randomGenerator().random() %
+          server_.options().drainTime().count());
 }
 
 void DrainManagerImpl::startDrainSequence(std::function<void()> drain_complete_cb) {
@@ -57,19 +59,21 @@ void DrainManagerImpl::startDrainSequence(std::function<void()> drain_complete_c
   ASSERT(!draining_);
   ASSERT(!drain_tick_timer_);
   draining_ = true;
-  drain_tick_timer_ = server_.dispatcher().createTimer(drain_complete_cb);
+  drain_tick_timer_ = server_.serverFactoryContext().dispatcher().createTimer(drain_complete_cb);
   const std::chrono::seconds drain_delay(server_.options().drainTime());
   drain_tick_timer_->enableTimer(drain_delay);
-  drain_deadline_ = server_.dispatcher().timeSource().monotonicTime() + drain_delay;
+  drain_deadline_ =
+      server_.serverFactoryContext().dispatcher().timeSource().monotonicTime() + drain_delay;
 }
 
 void DrainManagerImpl::startParentShutdownSequence() {
   ASSERT(!parent_shutdown_timer_);
-  parent_shutdown_timer_ = server_.dispatcher().createTimer([this]() -> void {
-    // Shut down the parent now. It should have already been draining.
-    ENVOY_LOG(info, "shutting down parent after drain");
-    server_.hotRestart().sendParentTerminateRequest();
-  });
+  parent_shutdown_timer_ =
+      server_.serverFactoryContext().dispatcher().createTimer([this]() -> void {
+        // Shut down the parent now. It should have already been draining.
+        ENVOY_LOG(info, "shutting down parent after drain");
+        server_.hotRestart().sendParentTerminateRequest();
+      });
 
   parent_shutdown_timer_->enableTimer(std::chrono::duration_cast<std::chrono::milliseconds>(
       server_.options().parentShutdownTime()));

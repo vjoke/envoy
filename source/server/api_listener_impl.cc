@@ -20,8 +20,9 @@ ApiListenerImplBase::ApiListenerImplBase(const envoy::config::listener::v3::List
                                          ListenerManagerImpl& parent, const std::string& name)
     : config_(config), parent_(parent), name_(name),
       address_(Network::Address::resolveProtoAddress(config.address())),
-      global_scope_(parent_.server_.stats().createScope("")),
-      listener_scope_(parent_.server_.stats().createScope(fmt::format("listener.api.{}.", name_))),
+      global_scope_(parent_.server_.serverFactoryContext().scope().createScope("")),
+      listener_scope_(parent_.server_.serverFactoryContext().scope().createScope(
+          fmt::format("listener.api.{}.", name_))),
       factory_context_(parent_.server_, config_, *this, *global_scope_, *listener_scope_),
       read_callbacks_(SyntheticReadCallbacks(*this)) {}
 

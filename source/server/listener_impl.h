@@ -126,7 +126,8 @@ public:
 
   // DrainDecision
   bool drainClose() const override {
-    return drain_manager_->drainClose() || server_.drainManager().drainClose();
+    return drain_manager_->drainClose() ||
+           server_.serverFactoryContext().drainManager().drainClose();
   }
   Server::DrainManager& drainManager();
 

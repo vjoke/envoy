@@ -101,7 +101,7 @@ void setHealthFlag(Upstream::Host::HealthFlag flag, const Upstream::Host& host,
 void ClustersHandler::writeClustersAsJson(Buffer::Instance& response) {
   envoy::admin::v3::Clusters clusters;
   // TODO(mattklein123): Add ability to see warming clusters in admin output.
-  auto all_clusters = server_.clusterManager().clusters();
+  auto all_clusters = server_.serverFactoryContext().clusterManager().clusters();
   for (const auto& [name, cluster_ref] : all_clusters.active_clusters_) {
     const Upstream::Cluster& cluster = cluster_ref.get();
     Upstream::ClusterInfoConstSharedPtr cluster_info = cluster.info();
@@ -187,7 +187,7 @@ void ClustersHandler::writeClustersAsJson(Buffer::Instance& response) {
 // TODO(efimki): Add support of text readouts stats.
 void ClustersHandler::writeClustersAsText(Buffer::Instance& response) {
   // TODO(mattklein123): Add ability to see warming clusters in admin output.
-  auto all_clusters = server_.clusterManager().clusters();
+  auto all_clusters = server_.serverFactoryContext().clusterManager().clusters();
   for (const auto& [name, cluster_ref] : all_clusters.active_clusters_) {
     const Upstream::Cluster& cluster = cluster_ref.get();
     const std::string& cluster_name = cluster.info()->name();

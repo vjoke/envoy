@@ -673,29 +673,43 @@ FactoryContextImpl::FactoryContextImpl(Server::Instance& server,
 AccessLog::AccessLogManager& FactoryContextImpl::accessLogManager() {
   return server_.accessLogManager();
 }
-Upstream::ClusterManager& FactoryContextImpl::clusterManager() { return server_.clusterManager(); }
-Event::Dispatcher& FactoryContextImpl::dispatcher() { return server_.dispatcher(); }
-Grpc::Context& FactoryContextImpl::grpcContext() { return server_.grpcContext(); }
+Upstream::ClusterManager& FactoryContextImpl::clusterManager() {
+  return server_.serverFactoryContext().clusterManager();
+}
+Event::Dispatcher& FactoryContextImpl::dispatcher() {
+  return server_.serverFactoryContext().dispatcher();
+}
+Grpc::Context& FactoryContextImpl::grpcContext() {
+  return server_.serverFactoryContext().grpcContext();
+}
 bool FactoryContextImpl::healthCheckFailed() { return server_.healthCheckFailed(); }
 Http::Context& FactoryContextImpl::httpContext() { return server_.httpContext(); }
-Init::Manager& FactoryContextImpl::initManager() { return server_.initManager(); }
-const LocalInfo::LocalInfo& FactoryContextImpl::localInfo() const { return server_.localInfo(); }
-Envoy::Runtime::Loader& FactoryContextImpl::runtime() { return server_.runtime(); }
+Init::Manager& FactoryContextImpl::initManager() {
+  return server_.serverFactoryContext().initManager();
+}
+const LocalInfo::LocalInfo& FactoryContextImpl::localInfo() const {
+  return server_.serverFactoryContext().localInfo();
+}
+Envoy::Runtime::Loader& FactoryContextImpl::runtime() {
+  return server_.serverFactoryContext().runtime();
+}
 Stats::Scope& FactoryContextImpl::scope() { return global_scope_; }
-Singleton::Manager& FactoryContextImpl::singletonManager() { return server_.singletonManager(); }
+Singleton::Manager& FactoryContextImpl::singletonManager() {
+  return server_.serverFactoryContext().singletonManager();
+}
 OverloadManager& FactoryContextImpl::overloadManager() { return server_.overloadManager(); }
 ThreadLocal::SlotAllocator& FactoryContextImpl::threadLocal() { return server_.threadLocal(); }
-Admin& FactoryContextImpl::admin() { return server_.admin(); }
-TimeSource& FactoryContextImpl::timeSource() { return server_.timeSource(); }
+Admin& FactoryContextImpl::admin() { return server_.serverFactoryContext().admin(); }
+TimeSource& FactoryContextImpl::timeSource() { return server_.serverFactoryContext().timeSource(); }
 ProtobufMessage::ValidationContext& FactoryContextImpl::messageValidationContext() {
-  return server_.messageValidationContext();
+  return server_.serverFactoryContext().messageValidationContext();
 }
 ProtobufMessage::ValidationVisitor& FactoryContextImpl::messageValidationVisitor() {
-  return server_.messageValidationContext().staticValidationVisitor();
+  return server_.serverFactoryContext().messageValidationContext().staticValidationVisitor();
 }
-Api::Api& FactoryContextImpl::api() { return server_.api(); }
+Api::Api& FactoryContextImpl::api() { return server_.serverFactoryContext().api(); }
 ServerLifecycleNotifier& FactoryContextImpl::lifecycleNotifier() {
-  return server_.lifecycleNotifier();
+  return server_.serverFactoryContext().lifecycleNotifier();
 }
 ProcessContextOptRef FactoryContextImpl::processContext() { return server_.processContext(); }
 Configuration::ServerFactoryContext& FactoryContextImpl::getServerFactoryContext() const {

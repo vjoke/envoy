@@ -14,6 +14,7 @@
 #include "envoy/runtime/runtime.h"
 #include "envoy/server/instance.h"
 #include "envoy/server/tracer_config.h"
+#include "envoy/server/transport_socket_config.h"
 #include "envoy/ssl/context_manager.h"
 
 #include "common/common/assert.h"
@@ -70,7 +71,7 @@ void MainImpl::initialize(const envoy::config::bootstrap::v3::Bootstrap& bootstr
   ENVOY_LOG(info, "loading {} static secret(s)", secrets.size());
   for (ssize_t i = 0; i < secrets.size(); i++) {
     ENVOY_LOG(debug, "static secret #{}: {}", i, secrets[i].name());
-    server.secretManager().addStaticSecret(secrets[i]);
+    server.transportSocketFactoryContext().secretManager().addStaticSecret(secrets[i]);
   }
 
   ENVOY_LOG(info, "loading {} cluster(s)", bootstrap.static_resources().clusters().size());
@@ -108,7 +109,8 @@ void MainImpl::initializeTracers(const envoy::config::trace::v3::Tracing& config
   // Now see if there is a factory that will accept the config.
   auto& factory = Config::Utility::getAndCheckFactory<TracerFactory>(configuration.http());
   ProtobufTypes::MessagePtr message = Config::Utility::translateToFactoryConfig(
-      configuration.http(), server.messageValidationContext().staticValidationVisitor(), factory);
+      configuration.http(),
+      server.serverFactoryContext().messageValidationContext().staticValidationVisitor(), factory);
 
   // Notice that the actual HttpTracer instance will be created on demand
   // in the context of "envoy.filters.network.http_connection_manager" filter.
@@ -124,7 +126,9 @@ void MainImpl::initializeStatsSinks(const envoy::config::bootstrap::v3::Bootstra
     // Generate factory and translate stats sink custom config
     auto& factory = Config::Utility::getAndCheckFactory<StatsSinkFactory>(sink_object);
     ProtobufTypes::MessagePtr message = Config::Utility::translateToFactoryConfig(
-        sink_object, server.messageValidationContext().staticValidationVisitor(), factory);
+        sink_object,
+        server.serverFactoryContext().messageValidationContext().staticValidationVisitor(),
+        factory);
 
     stats_sinks_.emplace_back(factory.createStatsSink(*message, server.serverFactoryContext()));
   }
@@ -164,7 +168,9 @@ WatchdogImpl::WatchdogImpl(const envoy::config::bootstrap::v3::Watchdog& watchdo
     // We shouldn't have overflow issues due to the range of Duration.
     // This won't be entirely uniform, depending on how large max_skew
     // is relation to uint64.
-    kill_timeout += (server.api().randomGenerator().random() % max_kill_timeout_jitter) + 1;
+    kill_timeout +=
+        (server.serverFactoryContext().api().randomGenerator().random() % max_kill_timeout_jitter) +
+        1;
   }
 
   kill_timeout_ = std::chrono::milliseconds(kill_timeout);

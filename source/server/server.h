@@ -151,7 +151,7 @@ private:
 // ServerFactoryContextImpl implements both ServerFactoryContext and
 // TransportSocketFactoryContext for convenience as these two contexts
 // share common member functions and member variables.
-class ServerFactoryContextImpl : public Configuration::ServerFactoryContext,
+/*class ServerFactoryContextImpl : public Configuration::ServerFactoryContext,
                                  public Configuration::TransportSocketFactoryContext {
 public:
   explicit ServerFactoryContextImpl(Instance& server)
@@ -197,14 +197,16 @@ public:
 private:
   Instance& server_;
   Stats::ScopePtr server_scope_;
-};
+};fixfix*/
 
 /**
  * This is the actual full standalone server which stitches together various common components.
  */
 class InstanceImpl final : Logger::Loggable<Logger::Id::main>,
                            public Instance,
-                           public ServerLifecycleNotifier {
+                           public ServerLifecycleNotifier,
+                           public Configuration::ServerFactoryContext,
+                           public Configuration::TransportSocketFactoryContext {
 public:
   /**
    * @throw EnvoyException if initialization fails.
@@ -256,21 +258,16 @@ public:
   const LocalInfo::LocalInfo& localInfo() const override { return *local_info_; }
   TimeSource& timeSource() override { return time_source_; }
   void flushStats() override;
-
-  Configuration::ServerFactoryContext& serverFactoryContext() override { return server_contexts_; }
-
+  Configuration::ServerFactoryContext& serverFactoryContext() override { return *this; }
   Configuration::TransportSocketFactoryContext& transportSocketFactoryContext() override {
-    return server_contexts_;
+    return *this;
   }
-
   std::chrono::milliseconds statsFlushInterval() const override {
     return config_.statsFlushInterval();
   }
-
   ProtobufMessage::ValidationContext& messageValidationContext() override {
     return validation_context_;
   }
-
   void setDefaultTracingConfig(const envoy::config::trace::v3::Tracing& tracing_config) override {
     http_context_.setDefaultTracingConfig(tracing_config);
   }
@@ -279,6 +276,19 @@ public:
   ServerLifecycleNotifier::HandlePtr registerCallback(Stage stage, StageCallback callback) override;
   ServerLifecycleNotifier::HandlePtr
   registerCallback(Stage stage, StageCallbackWithCompletion callback) override;
+
+  // fixfix
+  ProtobufMessage::ValidationVisitor& messageValidationVisitor() override {
+    // Server has two message validation visitors, one for static and
+    // other for dynamic configuration. Choose the dynamic validation
+    // visitor if server's init manager indicates that the server is
+    // in the Initialized state, as this state is engaged right after
+    // the static configuration (e.g., bootstrap) has been completed.
+    return initManager().state() == Init::Manager::State::Initialized
+               ? messageValidationContext().dynamicValidationVisitor()
+               : messageValidationContext().staticValidationVisitor();
+  }
+  Stats::Scope& scope() override { return stats_store_; }
 
 private:
   ProtobufTypes::MessagePtr dumpBootstrapConfig();
@@ -299,7 +309,8 @@ private:
 
   // init_manager_ must come before any member that participates in initialization, and destructed
   // only after referencing members are gone, since initialization continuation can potentially
-  // occur at any point during member lifetime. This init manager is populated with LdsApi targets.
+  // occur at any point during member lifetime. This init manager is populated with LdsApi
+  // targets.
   Init::Manager& init_manager_;
   // secret_manager_ must come before listener_manager_, config_ and dispatcher_, and destructed
   // only after these members can no longer reference it, since:
@@ -321,6 +332,7 @@ private:
   time_t original_start_time_;
   Stats::StoreRoot& stats_store_;
   std::unique_ptr<ServerStats> server_stats_;
+  //fixfixStats::ScopePtr server_scope_;
   Assert::ActionRegistrationPtr assert_action_registration_;
   Assert::ActionRegistrationPtr envoy_bug_action_registration_;
   ThreadLocal::Instance& thread_local_;
@@ -365,8 +377,6 @@ private:
   // whenever we have support for histogram merge across hot restarts.
   Stats::TimespanPtr initialization_timer_;
 
-  ServerFactoryContextImpl server_contexts_;
-
   template <class T>
   class LifecycleCallbackHandle : public ServerLifecycleNotifier::Handle, RaiiListElement<T> {
   public:
@@ -376,10 +386,11 @@ private:
 };
 
 // Local implementation of Stats::MetricSnapshot used to flush metrics to sinks. We could
-// potentially have a single class instance held in a static and have a clear() method to avoid some
-// vector constructions and reservations, but I'm not sure it's worth the extra complexity until it
-// shows up in perf traces.
-// TODO(mattklein123): One thing we probably want to do is switch from returning vectors of metrics
+// potentially have a single class instance held in a static and have a clear() method to avoid
+// some vector constructions and reservations, but I'm not sure it's worth the extra complexity
+// until it shows up in perf traces.
+// TODO(mattklein123): One thing we probably want to do is switch from returning vectors of
+// metrics
 //                     to a lambda based callback iteration API. This would require less vector
 //                     copying and probably be a cleaner API in general.
 class MetricSnapshotImpl : public Stats::MetricSnapshot {

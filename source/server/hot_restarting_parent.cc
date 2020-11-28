@@ -87,7 +87,8 @@ void HotRestartingParent::onSocketEvent() {
 void HotRestartingParent::shutdown() { socket_event_.reset(); }
 
 HotRestartingParent::Internal::Internal(Server::Instance* server) : server_(server) {
-  Stats::Gauge& hot_restart_generation = hotRestartGeneration(server->stats());
+  Stats::Gauge& hot_restart_generation =
+      hotRestartGeneration(server->serverFactoryContext().scope());
   hot_restart_generation.inc();
 }
 
@@ -124,7 +125,7 @@ HotRestartingParent::Internal::getListenSocketsForChild(const HotRestartMessage:
 // magnitude of memory usage that they are meant to avoid, since this map holds full-string
 // names. The problem can be solved by splitting the export up over many chunks.
 void HotRestartingParent::Internal::exportStatsToChild(HotRestartMessage::Reply::Stats* stats) {
-  for (const auto& gauge : server_->stats().gauges()) {
+  for (const auto& gauge : server_->transportSocketFactoryContext().stats().gauges()) {
     if (gauge->used()) {
       const std::string name = gauge->name();
       (*stats->mutable_gauges())[name] = gauge->value();
@@ -132,7 +133,7 @@ void HotRestartingParent::Internal::exportStatsToChild(HotRestartMessage::Reply:
     }
   }
 
-  for (const auto& counter : server_->stats().counters()) {
+  for (const auto& counter : server_->transportSocketFactoryContext().stats().counters()) {
     if (counter->used()) {
       // The hot restart parent is expected to have stopped its normal stat exporting (and so
       // latching) by the time it begins exporting to the hot restart child.
@@ -157,7 +158,8 @@ void HotRestartingParent::Internal::recordDynamics(HotRestartMessage::Reply::Sta
   // components using a dynamic representation.
   //
   // See https://github.com/envoyproxy/envoy/issues/9874 for more details.
-  Stats::DynamicSpans spans = server_->stats().symbolTable().getDynamicSpans(stat_name);
+  Stats::DynamicSpans spans =
+      server_->transportSocketFactoryContext().stats().symbolTable().getDynamicSpans(stat_name);
 
   // Convert that C++ structure (controlled by stat_merger.cc) into a protobuf
   // for serialization.

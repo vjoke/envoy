@@ -25,10 +25,11 @@ Http::Code ListenersHandler::handlerDrainListeners(absl::string_view url, Http::
   if (graceful) {
     // Ignore calls to /drain_listeners?graceful if the drain sequence has
     // already started.
-    if (!server_.drainManager().draining()) {
-      server_.drainManager().startDrainSequence([this, stop_listeners_type]() {
-        server_.listenerManager().stopListeners(stop_listeners_type);
-      });
+    if (!server_.serverFactoryContext().drainManager().draining()) {
+      server_.serverFactoryContext().drainManager().startDrainSequence(
+          [this, stop_listeners_type]() {
+            server_.listenerManager().stopListeners(stop_listeners_type);
+          });
     }
   } else {
     server_.listenerManager().stopListeners(stop_listeners_type);

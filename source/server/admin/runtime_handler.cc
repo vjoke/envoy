@@ -23,7 +23,7 @@ Http::Code RuntimeHandler::handlerRuntime(absl::string_view url,
   response_headers.setReferenceContentType(Http::Headers::get().ContentTypeValues.Json);
 
   // TODO(jsedgwick): Use proto to structure this output instead of arbitrary JSON.
-  const auto& layers = server_.runtime().snapshot().getLayers();
+  const auto& layers = server_.serverFactoryContext().runtime().snapshot().getLayers();
 
   std::vector<ProtobufWkt::Value> layer_names;
   layer_names.reserve(layers.size());
@@ -100,7 +100,7 @@ Http::Code RuntimeHandler::handlerRuntimeModify(absl::string_view url, Http::Res
   absl::node_hash_map<std::string, std::string> overrides;
   overrides.insert(params.begin(), params.end());
   try {
-    server_.runtime().mergeValues(overrides);
+    server_.serverFactoryContext().runtime().mergeValues(overrides);
   } catch (const EnvoyException& e) {
     response.add(e.what());
     return Http::Code::ServiceUnavailable;
